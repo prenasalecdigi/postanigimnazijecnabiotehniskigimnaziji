@@ -2,11 +2,12 @@
 <html lang="sl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Postani gimnazijec na biotehniški gimnaziji</title>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
     body {
       background: #000;
       color: #fff;
@@ -14,22 +15,26 @@
       overflow: hidden;
     }
 
+    /* Uporabi dinamični viewport (reši Android “odrezan” bottom UI) */
     #app {
       position: relative;
       width: 100vw;
-      height: 100vh;
+      height: 100dvh;
       overflow: hidden;
+      background: #000;
     }
 
+    /* Kamera čez cel ekran */
     #video {
       position: absolute;
       inset: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transform: scaleX(-1);
+      transform: scaleX(-1); /* selfie */
     }
 
+    /* PNG maska čez kamero */
     #mask {
       position: absolute;
       inset: 0;
@@ -41,11 +46,11 @@
 
     .header {
       position: absolute;
-      top: 0.8rem;
+      top: calc(0.8rem + env(safe-area-inset-top));
       left: 50%;
       transform: translateX(-50%);
-      width: calc(100% - 2rem);
-      max-width: 900px;
+      width: calc(100% - 1.6rem);
+      max-width: 920px;
       text-align: center;
       padding: 0.6rem 0.9rem;
       border-radius: 14px;
@@ -53,17 +58,32 @@
       backdrop-filter: blur(6px);
     }
 
+    .header h1 {
+      font-size: 1.05rem;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    .header p {
+      margin-top: 0.25rem;
+      font-size: 0.85rem;
+      opacity: 0.9;
+    }
+
     .controls {
       position: absolute;
-      bottom: 1rem;
       left: 50%;
       transform: translateX(-50%);
-      width: calc(100% - 2rem);
-      max-width: 900px;
+      bottom: env(safe-area-inset-bottom, 0.8rem);
+      width: calc(100% - 1.6rem);
+      max-width: 920px;
+
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 0.6rem;
+
       padding: 0.9rem;
+      padding-bottom: calc(0.9rem + env(safe-area-inset-bottom));
       border-radius: 18px;
       background: rgba(0,0,0,0.55);
       backdrop-filter: blur(6px);
@@ -72,33 +92,56 @@
     button {
       border: none;
       border-radius: 999px;
-      padding: 0.8rem;
+      padding: 0.85rem 1rem;
       font-size: 1rem;
-      font-weight: 800;
+      font-weight: 900;
       cursor: pointer;
       background: #fff;
       color: #111;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.35);
     }
 
     button.secondary {
-      background: rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.14);
       color: #fff;
-      border: 1px solid rgba(255,255,255,0.25);
+      border: 1px solid rgba(255,255,255,0.22);
+      box-shadow: none;
     }
 
-    .zoom {
+    .zoomRow {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 0.7rem;
+      padding: 0.2rem 0.2rem 0;
+    }
+
+    .zoomRow .label {
+      font-size: 0.85rem;
+      opacity: 0.95;
+      white-space: nowrap;
+    }
+
+    .zoomRow input[type="range"] {
+      width: 100%;
+    }
+
+    .zoomVal {
+      font-variant-numeric: tabular-nums;
+      font-size: 0.85rem;
+      opacity: 0.95;
+      min-width: 3.2rem;
+      text-align: right;
+    }
+
+    .note {
       grid-column: 1 / -1;
       text-align: center;
-    }
-
-    .zoom label {
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       opacity: 0.9;
-    }
-
-    .zoom input {
-      width: 100%;
-      margin-top: 0.3rem;
+      line-height: 1.35;
+      margin-top: 0.2rem;
     }
 
     #canvas { display: none; }
@@ -106,98 +149,147 @@
 </head>
 
 <body>
-<div id="app">
+  <div id="app">
+    <video id="video" autoplay playsinline></video>
 
-  <video id="video" autoplay playsinline></video>
-  <img id="mask" src="gimnazijec.png" alt="Gimnazijec">
+    <!-- PNG mora biti v isti mapi kot index.html -->
+    <img id="mask" src="gimnazijec.png" alt="Gimnazijec maska">
 
-  <div class="header">
-    <b>Postani gimnazijec na biotehniški gimnaziji</b><br>
-    Približaj ali oddalji sliko in klikni »Slikaj se«
-  </div>
-
-  <div class="controls">
-    <button id="captureBtn">📸 Slikaj se</button>
-    <button id="flipBtn" class="secondary">🔄 Kamera</button>
-
-    <div class="zoom">
-      <label>🔍 Zoom</label>
-      <input id="zoomSlider" type="range" min="0.8" max="2" step="0.01" value="1">
+    <div class="header">
+      <h1>Postani gimnazijec na biotehniški gimnaziji</h1>
+      <p>Približaj/oddalji in klikni “Slikaj se” (shranjeno brez popačenja).</p>
     </div>
+
+    <div class="controls">
+      <button id="captureBtn">📸 Slikaj se</button>
+      <button id="flipBtn" class="secondary">🔄 Kamera</button>
+
+      <div class="zoomRow">
+        <div class="label">🔍 Zoom</div>
+        <input id="zoomSlider" type="range" min="0.8" max="2.0" step="0.01" value="1.00" />
+        <div id="zoomVal" class="zoomVal">1.00×</div>
+      </div>
+
+      <div class="note">
+        iPhone: če se fotka odpre v novem zavihku, izberi <b>Share → Save Image</b>.
+      </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
   </div>
 
-  <canvas id="canvas"></canvas>
-</div>
+  <script>
+    const video = document.getElementById('video');
+    const mask = document.getElementById('mask');
+    const canvas = document.getElementById('canvas');
 
-<script>
-const video = document.getElementById('video');
-const mask = document.getElementById('mask');
-const canvas = document.getElementById('canvas');
-const captureBtn = document.getElementById('captureBtn');
-const flipBtn = document.getElementById('flipBtn');
-const zoomSlider = document.getElementById('zoomSlider');
+    const captureBtn = document.getElementById('captureBtn');
+    const flipBtn = document.getElementById('flipBtn');
 
-let currentStream = null;
-let facingMode = "user";
-let zoom = 1;
+    const zoomSlider = document.getElementById('zoomSlider');
+    const zoomVal = document.getElementById('zoomVal');
 
-// izhod 16:9
-const outW = 1920;
-const outH = 1080;
+    let currentStream = null;
+    let facingMode = "user"; // "user" sprednja, "environment" zadnja
+    let zoom = 1;
 
-async function startCamera() {
-  if (currentStream) currentStream.getTracks().forEach(t => t.stop());
+    // Izhod 16:9 (to je format shranjene slike)
+    const outW = 1920;
+    const outH = 1080;
 
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode }
-  });
+    async function startCamera() {
+      try {
+        if (currentStream) {
+          currentStream.getTracks().forEach(t => t.stop());
+          currentStream = null;
+        }
 
-  currentStream = stream;
-  video.srcObject = stream;
-}
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode }
+        });
 
-startCamera();
+        currentStream = stream;
+        video.srcObject = stream;
 
-flipBtn.onclick = async () => {
-  facingMode = facingMode === "user" ? "environment" : "user";
-  video.style.transform = facingMode === "user" ? "scaleX(-1)" : "none";
-  await startCamera();
-};
+      } catch (err) {
+        alert("Ne morem dostopati do kamere. Dovoli uporabo kamere v brskalniku.\nNapaka: " + err.message);
+      }
+    }
 
-zoomSlider.oninput = e => zoom = parseFloat(e.target.value);
+    startCamera();
 
-captureBtn.onclick = () => {
-  canvas.width = outW;
-  canvas.height = outH;
-  const ctx = canvas.getContext('2d');
+    flipBtn.addEventListener('click', async () => {
+      facingMode = (facingMode === "user") ? "environment" : "user";
+      // “selfie” zrcalimo samo pri sprednji kameri
+      video.style.transform = (facingMode === "user") ? "scaleX(-1)" : "none";
+      await startCamera();
+    });
 
-  const vw = video.videoWidth;
-  const vh = video.videoHeight;
+    zoomSlider.addEventListener('input', (e) => {
+      zoom = parseFloat(e.target.value);
+      zoomVal.textContent = zoom.toFixed(2) + "×";
+    });
 
-  const scale = Math.max(outW / vw, outH / vh) * zoom;
-  const drawW = vw * scale;
-  const drawH = vh * scale;
-  const dx = (outW - drawW) / 2;
-  const dy = (outH - drawH) / 2;
+    captureBtn.addEventListener('click', () => {
+      if (!video.videoWidth || !video.videoHeight) {
+        alert("Kamera se še zaganja. Poskusi ponovno čez trenutek.");
+        return;
+      }
 
-  if (facingMode === "user") {
-    ctx.save();
-    ctx.translate(outW, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, -(dx + drawW), dy, drawW, drawH);
-    ctx.restore();
-  } else {
-    ctx.drawImage(video, dx, dy, drawW, drawH);
-  }
+      canvas.width = outW;
+      canvas.height = outH;
 
-  ctx.drawImage(mask, 0, 0, outW, outH);
+      const ctx = canvas.getContext('2d');
 
-  const a = document.createElement('a');
-  a.href = canvas.toDataURL("image/png");
-  a.download = "postani-gimnazijec.png";
-  a.click();
-};
-</script>
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+
+      /**
+       * KLJUČ: "cover" risanje + zoom, da se shranjena slika ne stisne.
+       * To je isto logiko kot CSS object-fit: cover.
+       */
+      const baseScale = Math.max(outW / vw, outH / vh);
+      const scale = baseScale * zoom;
+
+      const drawW = vw * scale;
+      const drawH = vh * scale;
+
+      const dx = (outW - drawW) / 2;
+      const dy = (outH - drawH) / 2;
+
+      // Nariši video (zrcalimo, če je sprednja kamera)
+      if (facingMode === "user") {
+        ctx.save();
+        ctx.translate(outW, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, -(dx + drawW), dy, drawW, drawH);
+        ctx.restore();
+      } else {
+        ctx.drawImage(video, dx, dy, drawW, drawH);
+      }
+
+      // Masko nariši čez v enaki 16:9 velikosti
+      const drawMaskAndSave = () => {
+        ctx.drawImage(mask, 0, 0, outW, outH);
+        saveImage();
+      };
+
+      if (mask.complete) drawMaskAndSave();
+      else mask.onload = drawMaskAndSave;
+    });
+
+    function saveImage() {
+      const dataUrl = canvas.toDataURL("image/png");
+
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'postani-gimnazijec-16x9.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  </script>
 </body>
 </html>
+
 
