@@ -1,31 +1,203 @@
-const outW = 1080;   // izhodna širina
-const outH = 1920;   // izhodna višina (portrait 9:16)
-canvas.width = outW;
-canvas.height = outH;
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Postani gimnazijec na biotehniški gimnaziji</title>
 
-const ctx = canvas.getContext('2d');
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      overflow: hidden;
+    }
 
-// dimenzije surovega videa
-const vw = video.videoWidth;
-const vh = video.videoHeight;
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
 
-// izračun "cover": povečaj tako, da prekrije cel canvas, potem obreži višek
-const scale = Math.max(outW / vw, outH / vh);
-const drawW = vw * scale;
-const drawH = vh * scale;
-const dx = (outW - drawW) / 2;
-const dy = (outH - drawH) / 2;
+    #video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
 
-// če je sprednja kamera, zrcali, da se ujema s prikazom
-if (facingMode === "user") {
-  ctx.save();
-  ctx.translate(outW, 0);
-  ctx.scale(-1, 1);
-  ctx.drawImage(video, -dx - drawW, dy, drawW, drawH);
-  ctx.restore();
-} else {
-  ctx.drawImage(video, dx, dy, drawW, drawH);
+    #mask {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      pointer-events: none;
+    }
+
+    .header {
+      position: absolute;
+      top: 0.8rem;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 2rem);
+      max-width: 900px;
+      text-align: center;
+      padding: 0.6rem 0.9rem;
+      border-radius: 14px;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(6px);
+    }
+
+    .controls {
+      position: absolute;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 2rem);
+      max-width: 900px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+      padding: 0.9rem;
+      border-radius: 18px;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 0.8rem;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      background: #fff;
+      color: #111;
+    }
+
+    button.secondary {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+
+    .zoom {
+      grid-column: 1 / -1;
+      text-align: center;
+    }
+
+    .zoom label {
+      font-size: 0.8rem;
+      opacity: 0.9;
+    }
+
+    .zoom input {
+      width: 100%;
+      margin-top: 0.3rem;
+    }
+
+    #canvas { display: none; }
+  </style>
+</head>
+
+<body>
+<div id="app">
+
+  <video id="video" autoplay playsinline></video>
+  <img id="mask" src="gimnazijec.png" alt="Gimnazijec">
+
+  <div class="header">
+    <b>Postani gimnazijec na biotehniški gimnaziji</b><br>
+    Približaj ali oddalji sliko in klikni »Slikaj se«
+  </div>
+
+  <div class="controls">
+    <button id="captureBtn">📸 Slikaj se</button>
+    <button id="flipBtn" class="secondary">🔄 Kamera</button>
+
+    <div class="zoom">
+      <label>🔍 Zoom</label>
+      <input id="zoomSlider" type="range" min="0.8" max="2" step="0.01" value="1">
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+</div>
+
+<script>
+const video = document.getElementById('video');
+const mask = document.getElementById('mask');
+const canvas = document.getElementById('canvas');
+const captureBtn = document.getElementById('captureBtn');
+const flipBtn = document.getElementById('flipBtn');
+const zoomSlider = document.getElementById('zoomSlider');
+
+let currentStream = null;
+let facingMode = "user";
+let zoom = 1;
+
+// izhod 16:9
+const outW = 1920;
+const outH = 1080;
+
+async function startCamera() {
+  if (currentStream) currentStream.getTracks().forEach(t => t.stop());
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode }
+  });
+
+  currentStream = stream;
+  video.srcObject = stream;
 }
 
-// masko nariši čez v ISTI izhodni velikosti (tvoja PNG naj bo 1080x1920 ali vsaj enakega razmerja)
-ctx.drawImage(mask, 0, 0, outW, outH);
+startCamera();
+
+flipBtn.onclick = async () => {
+  facingMode = facingMode === "user" ? "environment" : "user";
+  video.style.transform = facingMode === "user" ? "scaleX(-1)" : "none";
+  await startCamera();
+};
+
+zoomSlider.oninput = e => zoom = parseFloat(e.target.value);
+
+captureBtn.onclick = () => {
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+
+  const scale = Math.max(outW / vw, outH / vh) * zoom;
+  const drawW = vw * scale;
+  const drawH = vh * scale;
+  const dx = (outW - drawW) / 2;
+  const dy = (outH - drawH) / 2;
+
+  if (facingMode === "user") {
+    ctx.save();
+    ctx.translate(outW, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, -(dx + drawW), dy, drawW, drawH);
+    ctx.restore();
+  } else {
+    ctx.drawImage(video, dx, dy, drawW, drawH);
+  }
+
+  ctx.drawImage(mask, 0, 0, outW, outH);
+
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL("image/png");
+  a.download = "postani-gimnazijec.png";
+  a.click();
+};
+</script>
+</body>
+</html>
+
