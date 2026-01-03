@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Postani gimnazijec na biotehniški gimnaziji</title>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Kamera čez cel ekran */
+    #video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* “selfie” občutek */
+    }
+
+    /* PNG maska (tvoja slika) čez kamero */
+    #mask {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      pointer-events: none;
+    }
+
+    /* Zgornji naslov */
+    .header {
+      position: absolute;
+      top: 0.9rem;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 2rem);
+      max-width: 720px;
+      text-align: center;
+      padding: 0.6rem 0.9rem;
+      border-radius: 14px;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(6px);
+    }
+    .header h1 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+    .header p {
+      margin-top: 0.25rem;
+      font-size: 0.85rem;
+      opacity: 0.9;
+    }
+
+    /* Kontrole spodaj */
+    .controls {
+      position: absolute;
+      bottom: 1.2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 2rem);
+      max-width: 720px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.7rem;
+      padding: 0.9rem;
+      border-radius: 18px;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 0.85rem 1rem;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      background: #fff;
+      color: #111;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    }
+    button:active { transform: scale(0.98); }
+    button.secondary {
+      background: rgba(255,255,255,0.14);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.18);
+      box-shadow: none;
+    }
+
+    .note {
+      grid-column: 1 / -1;
+      text-align: center;
+      font-size: 0.8rem;
+      opacity: 0.9;
+      line-height: 1.35;
+    }
+
+    /* skriti canvas */
+    #canvas { display: none; }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <video id="video" autoplay playsinline></video>
+
+    <!-- Tvoja PNG slika (mora biti v isti mapi kot index.html) -->
+    <img id="mask" src="gimnazijec.png" alt="Gimnazijec maska">
+
+    <div class="header">
+      <h1>Postani gimnazijec na biotehniški gimnaziji</h1>
+      <p>Postavi obraz v izrez in klikni “Slikaj se” – fotka se shrani na telefon.</p>
+    </div>
+
+    <div class="controls">
+      <button id="captureBtn">Slikaj se 📸</button>
+      <button id="flipBtn" class="secondary">Zamenjaj kamero 🔄</button>
+      <div class="note">
+        Če se fotka odpre v novem zavihku (pogosto na iPhone), jo tam shrani: <b>Share / Save Image</b>.
+      </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const mask = document.getElementById('mask');
+    const canvas = document.getElementById('canvas');
+    const captureBtn = document.getElementById('captureBtn');
+    const flipBtn = document.getElementById('flipBtn');
+
+    let currentStream = null;
+    let facingMode = "user"; // "user" (sprednja) ali "environment" (zadnja)
+
+    async function startCamera() {
+      try {
+        // ustavi prejšnji stream, če obstaja
+        if (currentStream) {
+          currentStream.getTracks().forEach(t => t.stop());
+          currentStream = null;
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode }
+        });
+
+        currentStream = stream;
+        video.srcObject = stream;
+
+      } catch (err) {
+        alert("Ne morem dostopati do kamere. Dovoli uporabo kamere v brskalniku.\nNapaka: " + err.message);
+      }
+    }
+
+    startCamera();
+
+    // Zamenjava kamere
+    flipBtn.addEventListener('click', async () => {
+      facingMode = (facingMode === "user") ? "environment" : "user";
+
+      // samo sprednja kamera naj bo zrcaljena
+      video.style.transform = (facingMode === "user") ? "scaleX(-1)" : "none";
+
+      await startCamera();
+    });
+
+    // Slikanje
+    captureBtn.addEventListener('click', () => {
+      if (!video.videoWidth || !video.videoHeight) {
+        alert("Kamera se še zaganja. Poskusi ponovno čez trenutek.");
+        return;
+      }
+
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+
+      // če je sprednja kamera (user), tudi posnetek zrcalimo, da se ujema z zaslonom
+      if (facingMode === "user") {
+        ctx.save();
+        ctx.translate(width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, width, height);
+        ctx.restore();
+      } else {
+        ctx.drawImage(video, 0, 0, width, height);
+      }
+
+      const drawMaskAndSave = () => {
+        ctx.drawImage(mask, 0, 0, width, height);
+        saveImage();
+      };
+
+      if (mask.complete) {
+        drawMaskAndSave();
+      } else {
+        mask.onload = drawMaskAndSave;
+      }
+    });
+
+    function saveImage() {
+      const dataUrl = canvas.toDataURL("image/png");
+
+      // sproži prenos
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'postani-gimnazijec.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  </script>
+</body>
+</html>
